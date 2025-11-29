@@ -1,0 +1,15 @@
+subfinder =====>> subdomain
+
+assetfinder =====>> subdomain
+
+offat =====>> OWASP OFFAT (OFFensive Api Tester
+
+nmap =====>> port scan
+
+naabu =====>> port scan
+
+httpx-toolkit =====>> http crawler
+
+waybackurls =====>> wayback urls {old urls}
+
+dotdotpwn =====>> directory traversal detection 

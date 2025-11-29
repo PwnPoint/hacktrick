@@ -1,0 +1,6 @@
+file 100MB.jpg
+exiftool 100MB.jpg
+strings 100MB.jpg
+binwalk -e 100MB.jpg
+xxd 100MB.jpg
+

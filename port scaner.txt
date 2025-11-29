@@ -1,0 +1,4 @@
+
+naabu -p - -rate 2000 -c 50 -retries 2 -warm-up-time 1 -silent -host crapi.apisec.ai -nmap-cli 'nmap -sV -oX scan.xml'
+nmap -Pn -n --top-ports=65535 5.79.34.199 
+nrich =====>> A command-line tool to quickly analyze all IPs in a file and see which ones have open ports
