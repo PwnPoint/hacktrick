@@ -1,17 +1,6 @@
-
-
-
 cat domains.txt | waybackurls | grep '.js' | httpx -mc 200 >> js.txt
 
-
 nuclei -l js.txt -t /home/kali/.local/nuclei-templates/http/exposures -o potential_secrets.txt
-
-
-
-
-
-
-
 
 js grep keyword
 
